@@ -19,8 +19,8 @@ dbConn <- odbcConnect("newSp")
 # **************
 if(length(dev.list()) < 3)  dev.new();
 
-# get all product subsubtitles	
-q <- paste("select productid id,name,subsubtitle,",
+# get all product info
+q <- paste("select productid id,name,",
             "round(ecGain,1) ecGain,round(ecStrictGain,1) ecStrictGain,round(ecLoss,1) ecLoss,round(100*probGain,1) probGain,",
             "round(100*probStrictGain,1) probStrictGain,round(100*probLoss,1) probLoss,round(Duration,1) Duration,",
             "round(PosDuration,1) PosDuration,round(StrictPosDuration,1) StrictPosDuration,round(NegDuration,1) NegDuration",
@@ -28,10 +28,11 @@ q <- paste("select productid id,name,subsubtitle,",
             " and productid in (35,36,78) order by productId ");
 r <- sqlQuery(dbConn,q,errors=FALSE)
 if(is.integer(r) || length(r[,1]) == 0) {print(paste("Either no data or SQLerror: with",q,odbcGetErrMsg(dbConn)));browser(); stop();}
-numProducts  <- length(r$subsubtitle) 
-ExpectedGain <- r$ecGain*r$probGain/100
-ExpectedLoss <- r$ecLoss*r$probLoss/100
-bothNames    <- character(); bothIret = numeric();bothIprob = numeric();bothEret = numeric();
+numProducts    <- length(r$id) 
+ExpectedGain   <- r$ecGain*r$probGain/100
+ExpectedLoss   <- r$ecLoss*r$probLoss/100
+bothNames      <- character(); bothIret = numeric();bothIprob = numeric();bothEret = numeric();
+compareResults <- data.frame(id=seq(1:numProducts),name=r$name)
 
 
 
@@ -42,15 +43,14 @@ bothIret    <- c(bothIret, r$ecGain[i], r$ecLoss[i] )
 bothIprob   <- c(bothIprob,r$probGain[i],r$probLoss[i])
 bothEret    <- c(bothEret, ExpectedGain[i], ExpectedLoss[i] )
 }
-results <- data.frame(id=seq(1:numProducts),name=r$name)
 
 
 #
 # do Gains graph
 #
-df     <- data.frame(ProductName=results$name, width = r$probGain, height = r$ecGain)
+df     <- data.frame(ProductName=compareResults$name, width = r$probGain, height = r$ecGain)
 # ProductName is a factor whose levels are ordered alphabetically;; this line puts its levels into original order
-df     <- transform(df,ProductName = reorder(ProductName,results$id))  
+df     <- transform(df,ProductName = reorder(ProductName,compareResults$id))  
 df$w   <- cumsum(df$width)
 df$wm  <- df$w - df$width
 df$wt  <- with(df, wm + (w - wm)/2)
@@ -63,9 +63,9 @@ pGain  <- p2 + theme(legend.position = "right",legend.key.size=unit(10,"points")
 #
 # do Loss graph
 #
-df     <- data.frame(ProductName=results$name, width = r$probLoss, height = r$ecLoss)
+df     <- data.frame(ProductName=compareResults$name, width = r$probLoss, height = r$ecLoss)
 # ProductName is a factor whose levels are ordered alphabetically;; this line puts its levels into original order
-df     <- transform(df,ProductName = reorder(ProductName,results$id))  
+df     <- transform(df,ProductName = reorder(ProductName,compareResults$id))  
 df$w   <- cumsum(df$width)
 df$wm  <- df$w - df$width
 df$wt  <- with(df, wm + (w - wm)/2)
@@ -91,9 +91,8 @@ p1     <- p + geom_rect(aes(xmin = wm, xmax = w, ymax = height, fill = Annualise
 #  p1     <- p1 + scale_color_discrete()
 p1     <- p1 + scale_fill_discrete(h=c(360,0),h.start=200,direction=-1)
 p2     <- p1 + geom_point(aes(x = wt, y = bothEret))
-p2     <- p2 + geom_text(aes(x = wt[alternateIndx], y = r$ecGain*1.1, label = r$name))
-pBoth  <- p2 + theme_bw() +  theme(legend.position = "right",legend.key.size=unit(10,"points")) + labs(x=NULL,y="Annualised return")
-
-
+p2     <- p2 + theme_bw() +  theme(legend.text = element_text(size = rel(2)),legend.title = element_text(size = rel(2)),legend.position = "right",legend.key.size=unit(40,"points")) + labs(x=NULL,y="Annualised return")
+pBoth     <- p2 + geom_text(aes(x = wt[alternateIndx], y = r$ecGain*1.1, label = r$name))
+                         
 # draw graphs
 pGain;dev.set(dev.next());pLoss;dev.set(dev.next());pBoth;dev.set(dev.next());
